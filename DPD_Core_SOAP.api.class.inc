@@ -1,94 +1,46 @@
 <?php
 /**
- * DPD REST API library/class
- * Interaction with DPD REST Web services.
+ * DPD SOAP API library/class
+ * Interaction with DPD SOAP Web services.
  */
-class DPD_Cloud_REST {
+ 
 
-   private $Url; // URL for RETS service.
-   private $Version; // Version.
+include_once dirname(__FILE__).'/classes/dpdlogin.php';
+include_once dirname(__FILE__).'/classes/dpdparcelshopfinder.php';
+include_once dirname(__FILE__).'/classes/dpdshippingmethods.php';
+
+class DPD_Core_SOAP {
+
+   private $Url; // URL for SOAP service.
    private $Language; // Message language.
-   private $PartnerName; // Name of your API partner.
-   private $PartnerToken; // Token of your API partner.
-   private $UsercloudUserID; // CustomerID of the DPD customer. Assigned by DPD.
-   private $UserToken; // Customer password of the DPD customer. Assigned by DPD.
+   private $DelisID; // Your DelisID.
+   private $Password; // Your password.
+
 
   /**
    * Constructor which initializes the consumer.
    *
-   * @param string $partner_name
-   *   Name of your API partner.
-   * @param string $partner_token
-   *   Token of your API partner.
-   * @param string $user_clouduserid
-   *   CustomerID of the DPD customer. Assigned by DPD.
-   * @param string $user_token
-   *   TCustomer password of the DPD customer. Assigned by DPD.
+   * @param string $delisID
+   *   Your DelisID
+   * @param string $password
+   *   Your password
    */
-  public function __construct($partner_name, $partner_token, $user_clouduserid, $user_token, $language = 'en_EN') {
-    $this->Url = 'https://cloud-stage.dpd.com/api/v1/';
-    $this->PartnerName = $partner_name;
-    $this->PartnerToken = $partner_token;
-    $this->UsercloudUserID = $user_clouduserid;
-    $this->UserToken = $user_token;
-    $this->Version = '100';
-    $this->Language = $language;
+  public function __construct($DelisID, $Password, $Language = 'en_EN', $LiveServer = true) {
+    $this->Url = $LiveServer ? 'https://public-ws.dpd.com/services/' : 'https://public-ws-stage.dpd.com/services/';
+    $this->DelisID = $DelisID;
+    $this->Password = $Password;
+    $this->Language = $Language;
   }
 
   /**
-   * Make a REST request to a DPD service.
+   * Make a request to the DPD services.
    *
    * @param $data
    * @return array;
    */
-  public function MakeRequest($method_url, $data = array(), $method = 'GET') {
-    $cType = 'application/json';
-    $defaultRequestHeaders = array(
-      'Version : ' . $this->Version,
-      'Language : ' . $this->Language,
-      'PartnerCredentials-Name : ' . $this->PartnerName,
-      'PartnerCredentials-Token : ' . $this->PartnerToken,
-      'UserCredentials-cloudUserID : ' . $this->UsercloudUserID,
-      'UserCredentials-Token : ' . $this->UserToken,
-    );
-
-    $curl = curl_init();
-    $url = $this->Url . $method_url;
-    if ($method == 'GET' && !empty($data)) {
-      foreach ($data as $url_item) {
-        // Encode the url items.
-        $url .= '/' . rawurlencode($url_item);
-      }
-    }
-
-    curl_setopt($curl, CURLOPT_URL, $url);
-    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
-    if ($method == 'POST') {
-      $data = json_encode($data);
-      curl_setopt($curl, CURLOPT_POST, 1);
-      curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
-      // Add JSON content type to headers to be sent.
-      // Important DPD API wants this header to be first in the headers array.
-      array_unshift($defaultRequestHeaders, 'Content-Type: application/json');
-    }
-    else {
-      curl_setopt($curl, CURLOPT_HTTPGET, TRUE);
-    }
-    curl_setopt($curl, CURLOPT_HTTPHEADER, $defaultRequestHeaders);
-    $curl_response = curl_exec($curl);
-    $code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-    if ($curl_response === FALSE) {
-        $info = curl_getinfo($curl);
-        curl_close($curl);
-        throw new Exception('Error occured during curl exec. Additional info: ' . var_export($info));
-    }
-    curl_close($curl);
-    $response = json_decode($curl_response);
-    if (isset($response->response->status) && $response->response->status == 'ERROR') {
-        throw new Exception('Error occured: ' . $response->response->errormessage);
-    }
+  public function MakeRequest($data = array()) {
+		$response = array('a');
+		
     return $response;
   }
 
@@ -104,13 +56,13 @@ class DPD_Cloud_REST {
    * @param $orders_data - Array contains orders data with their shipping address information,
    * parcel information, ParcelShop ID.
    * example:
-    $order_data = array(
+		$order_data = array(
       'OrderAction' => $action,
-        'OrderSettings' => array(
-          'ShipDate' => date('m.d.Y'),
-          'LabelSize' => 'PDF_A4',
-          'LabelStartPosition' => 'UpperLeft',
-    ),
+      'OrderSettings' => array(
+				'ShipDate' => date('m.d.Y'),
+				'LabelSize' => 'PDF_A4',
+				'LabelStartPosition' => 'UpperLeft',
+			),
      'OrderDataList' => array(
         // First order
         array(
@@ -149,22 +101,93 @@ class DPD_Cloud_REST {
    * @return array;
    */
   public function setOrders($action, $settings = array(), $orders_data) {
-    $settings += $this->defaultOrderSettings();
-    foreach ($orders_data as $order_data) {
-      $set_orders_data[] = array(
-        'ShipAddress' => $order_data['ship_address'] + $this->defaultShipAddress(),
-        'ParcelShopID' => !empty($order_data['parcel_shop_id']) ? $order_data['parcel_shop_id'] : 0,
-        'ParcelData' => $order_data['parcel_data'] + $this->defaultParcelData(),
-      );
-    }
-    $setOrderData = array(
-      'OrderAction' => $action,
-      'OrderSettings' => $settings,
-      'OrderDataList' => $set_orders_data,
-    );
-
-    $response = $this->MakeRequest('setOrder', $setOrderData, 'POST');
-    // $response->LabelResponse->LabelPDF = base64_decode($response->LabelResponse->LabelPDF);
+		try	{
+			$login = new DpdLogin($this->delisID, $this->password, $this->Url);
+		}
+		catch (Exception $e) {
+			throw new Exception('Error occured: ' . $e->getMessage());
+		}
+		
+		$shipment = new DpdShipment($login);
+		
+		foreach($orders_data['OrderDataList'] as $key => $order_data){
+			$shipment->request['order'][$key] = array(
+				'generalShipmentData' => array(
+					'mpsCustomerReferenceNumber1' => $orders_data['ParcelData']['Reference1']
+					,'mpsCustomerReferenceNumber2' => $orders_data['ParcelData']['Reference2']
+					,'sendingDepot' => $login->depot
+					,'product' => 'CL'
+					,'sender' => array(
+						'name1' => $orders_data['ShipperAddress']['Company']
+						,'name2' => $orders_data['ShipperAddress']['Name']
+						,'street' => $orders_data['ShipperAddress']['Street']
+						,'HouseNo' => $orders_data['ShipperAddress']['HouseNo']
+						,'country' => $orders_data['ShipperAddress']['Country']
+						,'zipCode' => $orders_data['ShipperAddress']['ZipCode']
+						,'city' => $orders_data['ShipperAddress']['City']
+					)
+					,'recipient' => array(
+						'name1' => $orders_data['ConsigneeAddress']['Company']
+						,'name2' => $orders_data['ConsigneeAddress']['Name']
+						,'street' => $orders_data['ConsigneeAddress']['Street']
+						,'HouseNo' => $orders_data['ConsigneeAddress']['HouseNo']
+						,'country' => $orders_data['ConsigneeAddress']['Country']
+						,'zipCode' => $orders_data['ConsigneeAddress']['ZipCode']
+						,'city' => $orders_data['ConsigneeAddress']['City']
+						,'phone' => $orders_data['ConsigneeAddress']['Phone']
+						,'email' => $orders_data['ConsigneeAddress']['Mail']
+					)
+				)
+			);
+			
+			$shipment->request['order']['parcels'] = array(
+				'customerReferenceNumber1' => $orders_data['ParcelData']['Reference1']
+				,'customerReferenceNumber2' => $orders_data['ParcelData']['Reference2']
+				,'weight' => $orders_data['ParcelData']['Weight']
+			);
+			
+			$shipment->request['order']['productAndServiceData']['orderType'] = 'consignment';
+			
+			// Predict
+			if($orders_data['ParcelData']['ShipService'] == 1){
+				if($orders_data['ConsigneeAddress']['Mail'])
+					$shipment->request['order']['productAndServiceData']['predict'] = array(
+						'channel' => '1'
+						,'value' => $orders_data['ConsigneeAddress']['Mail']
+						,'language' => 'EN'
+					);
+				elseif($orders_data['ConsigneeAddress']['Phone'])
+					$shipment->request['order']['productAndServiceData']['predict'] = array(
+						'channel' => '3'
+						,'value' => $orders_data['ConsigneeAddress']['Phone']
+						,'language' => 'EN'
+					);
+			}
+			
+			// ParcelShop
+			if($orders_data['ParcelData']['ShipService'] == 4){
+				if($orders_data['ConsigneeAddress']['Mail'])
+					$shipment->request['order']['productAndServiceData']['parcelShopDelivery']['parcelShopNotification'] = array(
+						'channel' => '1'
+						,'value' => $orders_data['ConsigneeAddress']['Mail']
+						,'language' => 'EN'
+					);
+				elseif($orders_data['ConsigneeAddress']['Phone'])
+					$shipment->request['order']['productAndServiceData']['parcelShopDelivery']['parcelShopNotification'] = array(
+						'channel' => '3'
+						,'value' => $orders_data['ConsigneeAddress']['Phone']
+						,'language' => 'EN'
+					);
+			}
+		}
+		
+		$response;
+		try {
+			$response = $shipment->send();
+		} 
+		catch (Exception $e) {
+			throw new Exception('Error occured: ' . $e->getMessage());
+		}
 
     return $response;
   }
@@ -181,7 +204,7 @@ class DPD_Cloud_REST {
    * @return array;
    */
   public function setOrder($action, $settings = array(), $ship_address = array(), $parcel_data = array(), $parcel_shop_id = 0) {
-    $settings += $this->defaultOrderSettings();
+		$settings += $this->defaultOrderSettings();
     $ship_address += $this->defaultShipAddress();
     $parcel_data += $this->defaultParcelData();
     $order_data = array(
@@ -196,7 +219,7 @@ class DPD_Cloud_REST {
       ),
     );
 
-    $response = $this->MakeRequest('setOrder', $order_data, 'POST');
+    $response = $this->setOrders($action, $settings = array(), $order_data);
 
     return $response;
   }
@@ -270,7 +293,7 @@ class DPD_Cloud_REST {
    */
   private function defaultParcelData() {
     $ParcelData = array(
-      'ShipService' => '', // Enumeration of the DPD shipping products.
+      'ShipService' => '0', // Enumeration of the DPD shipping products.
       // Possible values:
       // . Classic = 0
       // . Classic_Predict = 1
@@ -342,10 +365,10 @@ class DPD_Cloud_REST {
    */
   public function getParcelShopFinder($search_data, $search_mode = 0, $max_results = 100, $need_service = 0, $hide_on_closed_at = 'null') {
     if ($search_mode === 0) {
-      $reponse = $this->getParcelShopFinderByAddress($search_data, $hide_on_closed_at, $need_service, $max_results = 100);
+      $response = $this->getParcelShopFinderByAddress($search_data, $hide_on_closed_at, $need_service, $max_results = 100);
     }
     elseif($search_mode == 1) {
-      $reponse = $this->getParcelShopFinderByGeoData($search_data['longitude'], $search_data['latitude'], $hide_on_closed_at, $need_service, $max_results = 100);
+      $response = $this->getParcelShopFinderByGeoData($search_data['longitude'], $search_data['latitude'], $hide_on_closed_at, $need_service, $max_results = 100);
     }
 
     return $response;
@@ -358,23 +381,25 @@ class DPD_Cloud_REST {
    * @return object response;
    */
   public function getParcelShopFinderByAddress($search_address, $max_results = 100, $need_service = 0, $hide_on_closed_at = 'null') {
-    $default_search_address = $this->defaultSearchAddress();
-    $search_address += $default_search_address;
-    // Make sure we have the right order for array elements.
-    $search_address = array_replace($default_search_address, array_intersect_key($search_address, $default_search_address));
+    try	{
+			$login = new DpdLogin($this->DelisID, $this->Password, $this->Url);
+		}
+		catch (Exception $e) {
+			throw new Exception('Error occured: ' . $e->getMessage());
+		}
+		
+		$parcelshopfinder;
+		
+		try	{
+			$parcelshopfinder = new DpdParcelShopFinder($login);
+		}
+		catch (Exception $e) {
+			throw new Exception('Error occured: ' . $e->getMessage());
+		}
 
-    $search_params = array(
-      'MaxReturnValues' => $max_results,
-    )
-    + $search_address +
-    array(
-      'NeedService' => $need_service,
-      'HideOnClosedAt' => $hide_on_closed_at,
-    );
-
-    $response = $this->MakeRequest('ParcelShopFinder', $search_params);
-
-    return $response;
+    $parcelshopfinder->search($search_address);
+				
+    return $this->mapParcelShopData($parcelshopfinder->results);
   }
 
   /**
@@ -384,18 +409,88 @@ class DPD_Cloud_REST {
    * @return object response;
    */
   public function getParcelShopFinderByGeoData($longitute, $latitude, $max_results = 100, $need_service = 0, $hide_on_closed_at = 'null') {
-    $search_params = array(
-      'MaxReturnValues' => $max_results,
-      'Longitude' => $longitute,
-      'Latitude' => $latitude,
-      'NeedService' => $need_service,
-      'HideOnClosedAt' => $hide_on_closed_at,
-    );
+		try	{
+			$login = new DpdLogin($this->DelisID, $this->Password, $this->Url);
+		}
+		catch (Exception $e) {
+			throw new Exception('Error occured: ' . $e->getMessage());
+		}
+		
+		$parcelshopfinder;
+		
+		try	{
+			$parcelshopfinder = new DpdParcelShopFinder($login);
+		}
+		catch (Exception $e) {
+			throw new Exception('Error occured: ' . $e->getMessage());
+		}
 
-    $response = $this->MakeRequest('ParcelShopFinder', $search_params);
+    $parcelshopfinder->search(array('long' => $longitute, 'lat' => $latitude));
 
-    return $response;
+    return $this->mapParcelShopData($parcelshopfinder->results);
   }
+	
+	private function mapParcelShopData($results){
+		
+		$result = new stdClass();
+		$result->ParcelShopList = array();
+		
+		foreach($results as $parcelshopID => $data){
+			$shop = new stdClass();
+			
+			$shop->ParcelShopID = $parcelshopID;
+			
+			$shop->ShopAddress = new stdClass();
+			$shop->ShopAddress->Company = $data->company;
+			$shop->ShopAddress->Salutation = '';
+			$shop->ShopAddress->Name = '';
+			$shop->ShopAddress->Street = $data->street;
+			$shop->ShopAddress->HouseNo = $data->houseNo;
+			$shop->ShopAddress->Country = $data->isoAlpha2;
+			$shop->ShopAddress->ZipCode = $data->zipCode;
+			$shop->ShopAddress->City = $data->city;
+			$shop->ShopAddress->State = '';
+			$shop->ShopAddress->Phone = $data->phone;
+			$shop->ShopAddress->Mail = $data->email;
+						
+			$shop->Homepage = $data->homepage;
+			
+			$shop->GeoData = new stdClass();
+			$shop->GeoData->Distance = $data->distance;
+			$shop->GeoData->Longitude = $data->longitude;
+			$shop->GeoData->Latitude = $data->latitude;
+			$shop->GeoData->CoordinateX = $data->coordinateX;
+			$shop->GeoData->CoordinateY = $data->coordinateY;
+			$shop->GeoData->CoordinateZ = $data->coordinateZ;
+			
+			$shop->ShopServiceList = array('PickupByConsignee');
+			
+			$shop->OpeningHoursList = array();
+			foreach($data->openingHours as $day){
+				$newDay = new stdClass;
+				
+				$newDay->WeekDay = $day->weekday;
+				
+				$morning = new stdClass();
+				$morning->TimeFrom = $day->openMorning;
+				$morning->TimeEnd = $day->closeMorning;
+				
+				$afternoon = new stdClass();
+				$afternoon->TimeFrom = $day->openAfternoon;
+				$afternoon->TimeEnd = $day->closeAfternoon;
+				
+				$newDay->OpenTimeList = array($morning, $afternoon);
+				
+				$shop->OpeningHoursList[] = $newDay;
+			}
+			
+			$shop->ExtraInfo = $data->extraInfo;
+			
+			$result->ParcelShopList[] = $shop;
+		}
+		
+    return $result;
+	}
 
   /**
    * Constructs default Search address data array.
