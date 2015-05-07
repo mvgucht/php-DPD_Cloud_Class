@@ -17,7 +17,11 @@ class DPD_Core_SOAP {
    private $DelisID; // Your DelisID.
    private $Password; // Your password.
 	 private $TimeLogging; // Web service time logging.
-
+	 
+	 private $Login;
+	 
+	 private $LastShopSearchData;
+	 private $LastShopSearchResult;
 
   /**
    * Constructor which initializes the consumer.
@@ -33,6 +37,13 @@ class DPD_Core_SOAP {
     $this->Password = $Password;
 		$this->TimeLogging = $TimeLogging;
     $this->Language = $Language;
+		
+		try	{
+			$this->Login = new DpdLogin($this->DelisID, $this->Password, $this->Url, $this->TimeLogging);
+		}
+		catch (Exception $e) {
+			throw new Exception('Error occured: ' . $e->getMessage());
+		}
   }
 
   /**
@@ -104,14 +115,7 @@ class DPD_Core_SOAP {
    * @return array;
    */
   public function setOrders($action, $settings = array(), $orders_data) {
-		try	{
-			$login = new DpdLogin($this->DelisID, $this->Password, $this->Url, $this->TimeLogging);
-		}
-		catch (Exception $e) {
-			throw new Exception('Error occured: ' . $e->getMessage());
-		}
-		
-		$shipment = new DpdShipment($login);
+		$shipment = new DpdShipment($this->Login);
 		
 		foreach($orders_data as $key => $order_data){
 			$shipment->request['order'][$key] = array(
@@ -119,7 +123,7 @@ class DPD_Core_SOAP {
 					'mpsCustomerReferenceNumber1' => $order_data['ParcelData']['Reference1']
 					,'mpsCustomerReferenceNumber2' => $order_data['ParcelData']['Reference2']
 					,'identificationNumber' => $order_data['ParcelData']['Reference1']
-					,'sendingDepot' => $login->depot
+					,'sendingDepot' => $this->Login->depot
 					,'product' => 'CL'
 					,'sender' => array(
 						'name1' => $order_data['ShipperAddress']['Company']
@@ -387,14 +391,17 @@ class DPD_Core_SOAP {
    * @return object response;
    */
   public function getParcelShopFinder($search_data, $search_mode = 0, $max_results = 100, $need_service = 0, $hide_on_closed_at = 'null') {
-    if ($search_mode === 0) {
-      $response = $this->getParcelShopFinderByAddress($search_data, $hide_on_closed_at, $need_service, $max_results = 100);
-    }
-    elseif($search_mode == 1) {
-      $response = $this->getParcelShopFinderByGeoData($search_data['longitude'], $search_data['latitude'], $hide_on_closed_at, $need_service, $max_results = 100);
-    }
-
-    return $response;
+		if ($search_mode === 0) {
+			$response = $this->getParcelShopFinderByAddress($search_data, $hide_on_closed_at, $need_service, $max_results = 100);
+		}
+		elseif($search_mode == 1) {
+			$response = $this->getParcelShopFinderByGeoData($search_data['longitude'], $search_data['latitude'], $hide_on_closed_at, $need_service, $max_results = 100);
+		}
+		
+		$this->LastShopSearchData = $search_data;
+		$this->LastShopSearchResult = $response;
+		
+		return $response;
   }
 
   /**
@@ -404,25 +411,26 @@ class DPD_Core_SOAP {
    * @return object response;
    */
   public function getParcelShopFinderByAddress($search_address, $max_results = 100, $need_service = 0, $hide_on_closed_at = 'null') {
-    try	{
-			$login = new DpdLogin($this->DelisID, $this->Password, $this->Url, $this->TimeLogging);
-		}
-		catch (Exception $e) {
-			throw new Exception('Error occured: ' . $e->getMessage());
-		}
+		
+		if($this->LastShopSearchData == $search_address)
+			return $this->LastShopSearchResult;
 		
 		$parcelshopfinder;
 		
 		try	{
-			$parcelshopfinder = new DpdParcelShopFinder($login);
+			$parcelshopfinder = new DpdParcelShopFinder($this->Login);
 		}
 		catch (Exception $e) {
 			throw new Exception('Error occured: ' . $e->getMessage());
 		}
 
-    $parcelshopfinder->search($search_address);
+		$parcelshopfinder->search($search_address);
+		
+		$this->LastShopSearchData = $search_address;
+		$this->LastShopSearchResult = $this->mapParcelShopData($parcelshopfinder->results);
 				
-    return $this->mapParcelShopData($parcelshopfinder->results);
+		return $this->LastShopSearchResult;
+
   }
 
   /**
@@ -432,25 +440,41 @@ class DPD_Core_SOAP {
    * @return object response;
    */
   public function getParcelShopFinderByGeoData($longitute, $latitude, $max_results = 100, $need_service = 0, $hide_on_closed_at = 'null') {
-		try	{
-			$login = new DpdLogin($this->DelisID, $this->Password, $this->Url, $this->TimeLogging);
-		}
-		catch (Exception $e) {
-			throw new Exception('Error occured: ' . $e->getMessage());
+		$search_data['longitude'] = $longitute;
+		$search_data['latitude'] = $latitude;
+		
+		if($this->LastShopSearchData == $search_data)
+			return $this->LastShopSearchResult;
+
+		if($this->LastShopSearchResult)
+		{
+			foreach($this->LastShopSearchResult->ParcelShopList as $ParcelShop)
+			{
+				if($ParcelShop->GeoData->Longitude == $longitute
+					&& $ParcelShop->GeoData->Latitude == $latitude)
+				{
+					$result = new stdClass();
+					$result->ParcelShopList = array($ParcelShop);
+					return $result;
+				} 
+			}
 		}
 		
 		$parcelshopfinder;
 		
 		try	{
-			$parcelshopfinder = new DpdParcelShopFinder($login);
+			$parcelshopfinder = new DpdParcelShopFinder($this->Login);
 		}
 		catch (Exception $e) {
 			throw new Exception('Error occured: ' . $e->getMessage());
 		}
 
-    $parcelshopfinder->search(array('long' => $longitute, 'lat' => $latitude));
-
-    return $this->mapParcelShopData($parcelshopfinder->results);
+		$parcelshopfinder->search(array('long' => $longitute, 'lat' => $latitude));
+		
+		$this->LastShopSearchData = $search_data;
+		$this->LastShopSearchResult = $this->mapParcelShopData($parcelshopfinder->results);
+				
+		return $this->LastShopSearchResult;
   }
 	
 	private function mapParcelShopData($results){
