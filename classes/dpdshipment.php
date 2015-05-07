@@ -7,7 +7,6 @@ class DpdShipment
 	 */
 	CONST WEBSERVICE_SHIPMENT = 'ShipmentService/V3_2/?wsdl';
 	
-	public $url;
 	public $login;
 	public $request;
 	
@@ -16,7 +15,6 @@ class DpdShipment
 	public function __construct(DpdLogin $login)	
 	{
 		$this->login = $login;
-		$this->url = $this->getWebserviceUrl($login->url);
 	}
 	
 	public function send()
@@ -33,12 +31,17 @@ class DpdShipment
 			&& $counter < 3)
 		{
 			try {
-				$client = new SoapClient($this->url, array('trace' => 1));
+				$client = new SoapClient($this->getWebserviceUrl($this->login->url), array('trace' => 1));
 				
 				$soapHeader = $this->login->getSoapHeader();
 				$client->__setSoapHeaders($soapHeader);
-
+				
+				$startTime = microtime(true);
 				$result = $client->storeOrders($this->request);
+				$endTime = microtime(true);
+				
+				if($this->login->timeLogging)
+					$this->logTime($endTime - $startTime);
 			} 
 			catch (SoapFault $soapE) 
 			{
@@ -139,5 +142,30 @@ class DpdShipment
 			}
 
 			return $url . self::WEBSERVICE_SHIPMENT;
+	}
+	
+	private function logTime($time)
+	{
+		$params['entry.1319880751'] = $this->login->url;
+		$params['entry.2100714811'] = self::WEBSERVICE_SHIPMENT;
+		$params['entry.667346972'] = str_replace('.',',',$time);
+		$params['submit'] = "Verzenden";
+		
+		foreach ($params as $key => &$val) {
+      if (is_array($val)) $val = implode(',', $val);
+        $post_params[] = $key.'='.$val;
+    }
+    $post_string = implode('&', $post_params);
+
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, "https://docs.google.com/forms/d/1FZqWVldCn4QvIP1NJU1zgYgJRJrTIwWThwIViLhkvBs/formResponse"); //"http://localhost/googletest.php"); //
+		curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)");
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+		curl_setopt($ch, CURLOPT_TIMEOUT_MS, 1000);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $post_string);
+		$result = curl_exec($ch);
+		curl_close($ch);
 	}
 }

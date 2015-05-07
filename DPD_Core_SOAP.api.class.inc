@@ -8,6 +8,7 @@
 include_once dirname(__FILE__).'/classes/dpdlogin.php';
 include_once dirname(__FILE__).'/classes/dpdparcelshopfinder.php';
 include_once dirname(__FILE__).'/classes/dpdshippingmethods.php';
+include_once dirname(__FILE__).'/classes/dpdshipment.php';
 
 class DPD_Core_SOAP {
 
@@ -15,6 +16,7 @@ class DPD_Core_SOAP {
    private $Language; // Message language.
    private $DelisID; // Your DelisID.
    private $Password; // Your password.
+	 private $TimeLogging; // Web service time logging.
 
 
   /**
@@ -25,10 +27,11 @@ class DPD_Core_SOAP {
    * @param string $password
    *   Your password
    */
-  public function __construct($DelisID, $Password, $Language = 'en_EN', $LiveServer = true) {
+  public function __construct($DelisID, $Password, $Language = 'en_EN', $LiveServer = true, $TimeLogging = true) {
     $this->Url = $LiveServer ? 'https://public-ws.dpd.com/services/' : 'https://public-ws-stage.dpd.com/services/';
     $this->DelisID = $DelisID;
     $this->Password = $Password;
+		$this->TimeLogging = $TimeLogging;
     $this->Language = $Language;
   }
 
@@ -102,7 +105,7 @@ class DPD_Core_SOAP {
    */
   public function setOrders($action, $settings = array(), $orders_data) {
 		try	{
-			$login = new DpdLogin($this->delisID, $this->password, $this->Url);
+			$login = new DpdLogin($this->DelisID, $this->Password, $this->Url, $this->TimeLogging);
 		}
 		catch (Exception $e) {
 			throw new Exception('Error occured: ' . $e->getMessage());
@@ -110,72 +113,74 @@ class DPD_Core_SOAP {
 		
 		$shipment = new DpdShipment($login);
 		
-		foreach($orders_data['OrderDataList'] as $key => $order_data){
+		foreach($orders_data as $key => $order_data){
 			$shipment->request['order'][$key] = array(
 				'generalShipmentData' => array(
-					'mpsCustomerReferenceNumber1' => $orders_data['ParcelData']['Reference1']
-					,'mpsCustomerReferenceNumber2' => $orders_data['ParcelData']['Reference2']
+					'mpsCustomerReferenceNumber1' => $order_data['ParcelData']['Reference1']
+					,'mpsCustomerReferenceNumber2' => $order_data['ParcelData']['Reference2']
+					,'identificationNumber' => $order_data['ParcelData']['Reference1']
 					,'sendingDepot' => $login->depot
 					,'product' => 'CL'
 					,'sender' => array(
-						'name1' => $orders_data['ShipperAddress']['Company']
-						,'name2' => $orders_data['ShipperAddress']['Name']
-						,'street' => $orders_data['ShipperAddress']['Street']
-						,'HouseNo' => $orders_data['ShipperAddress']['HouseNo']
-						,'country' => $orders_data['ShipperAddress']['Country']
-						,'zipCode' => $orders_data['ShipperAddress']['ZipCode']
-						,'city' => $orders_data['ShipperAddress']['City']
+						'name1' => $order_data['ShipperAddress']['Company']
+						,'name2' => $order_data['ShipperAddress']['Name']
+						,'street' => $order_data['ShipperAddress']['Street']
+						,'HouseNo' => $order_data['ShipperAddress']['HouseNo']
+						,'country' => $order_data['ShipperAddress']['Country']
+						,'zipCode' => $order_data['ShipperAddress']['ZipCode']
+						,'city' => $order_data['ShipperAddress']['City']
 					)
 					,'recipient' => array(
-						'name1' => $orders_data['ConsigneeAddress']['Company']
-						,'name2' => $orders_data['ConsigneeAddress']['Name']
-						,'street' => $orders_data['ConsigneeAddress']['Street']
-						,'HouseNo' => $orders_data['ConsigneeAddress']['HouseNo']
-						,'country' => $orders_data['ConsigneeAddress']['Country']
-						,'zipCode' => $orders_data['ConsigneeAddress']['ZipCode']
-						,'city' => $orders_data['ConsigneeAddress']['City']
-						,'phone' => $orders_data['ConsigneeAddress']['Phone']
-						,'email' => $orders_data['ConsigneeAddress']['Mail']
+						'name1' => $order_data['ConsigneeAddress']['Name']
+						,'name2' => $order_data['ConsigneeAddress']['Company']
+						,'street' => $order_data['ConsigneeAddress']['Street']
+						,'HouseNo' => $order_data['ConsigneeAddress']['HouseNo']
+						,'country' => $order_data['ConsigneeAddress']['Country']
+						,'zipCode' => $order_data['ConsigneeAddress']['ZipCode']
+						,'city' => $order_data['ConsigneeAddress']['City']
+						,'phone' => $order_data['ConsigneeAddress']['Phone']
+						,'email' => $order_data['ConsigneeAddress']['Mail']
 					)
 				)
 			);
 			
-			$shipment->request['order']['parcels'] = array(
-				'customerReferenceNumber1' => $orders_data['ParcelData']['Reference1']
-				,'customerReferenceNumber2' => $orders_data['ParcelData']['Reference2']
-				,'weight' => $orders_data['ParcelData']['Weight']
+			$shipment->request['order'][$key]['parcels'] = array(
+				'customerReferenceNumber1' => $order_data['ParcelData']['Reference1']
+				,'customerReferenceNumber2' => $order_data['ParcelData']['Reference2']
+				,'weight' => $order_data['ParcelData']['Weight']
 			);
 			
-			$shipment->request['order']['productAndServiceData']['orderType'] = 'consignment';
+			$shipment->request['order'][$key]['productAndServiceData']['orderType'] = 'consignment';
 			
 			// Predict
-			if($orders_data['ParcelData']['ShipService'] == 1){
-				if($orders_data['ConsigneeAddress']['Mail'])
-					$shipment->request['order']['productAndServiceData']['predict'] = array(
+			if($order_data['ParcelData']['ShipService'] == 'Classic_Predict'){
+				if($order_data['ConsigneeAddress']['Mail'])
+					$shipment->request['order'][$key]['productAndServiceData']['predict'] = array(
 						'channel' => '1'
-						,'value' => $orders_data['ConsigneeAddress']['Mail']
+						,'value' => $order_data['ConsigneeAddress']['Mail']
 						,'language' => 'EN'
 					);
-				elseif($orders_data['ConsigneeAddress']['Phone'])
-					$shipment->request['order']['productAndServiceData']['predict'] = array(
+				elseif($order_data['ConsigneeAddress']['Phone'])
+					$shipment->request['order'][$key]['productAndServiceData']['predict'] = array(
 						'channel' => '3'
-						,'value' => $orders_data['ConsigneeAddress']['Phone']
+						,'value' => $order_data['ConsigneeAddress']['Phone']
 						,'language' => 'EN'
 					);
 			}
-			
+
 			// ParcelShop
-			if($orders_data['ParcelData']['ShipService'] == 4){
-				if($orders_data['ConsigneeAddress']['Mail'])
-					$shipment->request['order']['productAndServiceData']['parcelShopDelivery']['parcelShopNotification'] = array(
+			if($order_data['ParcelData']['ShipService'] == 'Shop_Delivery'){
+				$shipment->request['order'][$key]['productAndServiceData']['parcelShopDelivery']['parcelShopId'] = $order_data['parcel_shop_id'];
+				if($order_data['ConsigneeAddress']['Mail'])
+					$shipment->request['order'][$key]['productAndServiceData']['parcelShopDelivery']['parcelShopNotification'] = array(
 						'channel' => '1'
-						,'value' => $orders_data['ConsigneeAddress']['Mail']
+						,'value' => $order_data['ConsigneeAddress']['Mail']
 						,'language' => 'EN'
 					);
-				elseif($orders_data['ConsigneeAddress']['Phone'])
-					$shipment->request['order']['productAndServiceData']['parcelShopDelivery']['parcelShopNotification'] = array(
+				elseif($order_data['ConsigneeAddress']['Phone'])
+					$shipment->request['order'][$key]['productAndServiceData']['parcelShopDelivery']['parcelShopNotification'] = array(
 						'channel' => '3'
-						,'value' => $orders_data['ConsigneeAddress']['Phone']
+						,'value' => $order_data['ConsigneeAddress']['Phone']
 						,'language' => 'EN'
 					);
 			}
@@ -188,8 +193,26 @@ class DPD_Core_SOAP {
 		catch (Exception $e) {
 			throw new Exception('Error occured: ' . $e->getMessage());
 		}
-
-    return $response;
+		
+		$mapped_response = new stdClass();
+		$mapped_response->Version = 100;
+		$mapped_response->Language = 'en_EN';
+		$mapped_response->Ack = true;
+		$mapped_response->TimeStamp = date("Y-m-d") . "T" . date("H:m:s.uP");
+		$mapped_response->LabelResponse = new stdClass();
+		$mapped_response->SystemInformation = null;
+		$mapped_response->ErrorDataList = null;
+		
+		$mapped_response->LabelResponse->LabelPDF = $response->orderResult->parcellabelsPDF;
+		$mapped_response->LabelResponse->LabelDataList = array();
+		
+		$parcelData = new stdClass();
+		$parcelData->YourInternalID = $response->orderResult->shipmentResponses->identificationNumber;
+		$parcelData->ParcelNo = $response->orderResult->shipmentResponses->parcelInformation->parcelLabelNumber;
+		
+		$mapped_response->LabelResponse->LabelDataList[] = $parcelData;
+		
+    return $mapped_response;
   }
 
   /**
@@ -382,7 +405,7 @@ class DPD_Core_SOAP {
    */
   public function getParcelShopFinderByAddress($search_address, $max_results = 100, $need_service = 0, $hide_on_closed_at = 'null') {
     try	{
-			$login = new DpdLogin($this->DelisID, $this->Password, $this->Url);
+			$login = new DpdLogin($this->DelisID, $this->Password, $this->Url, $this->TimeLogging);
 		}
 		catch (Exception $e) {
 			throw new Exception('Error occured: ' . $e->getMessage());
@@ -410,7 +433,7 @@ class DPD_Core_SOAP {
    */
   public function getParcelShopFinderByGeoData($longitute, $latitude, $max_results = 100, $need_service = 0, $hide_on_closed_at = 'null') {
 		try	{
-			$login = new DpdLogin($this->DelisID, $this->Password, $this->Url);
+			$login = new DpdLogin($this->DelisID, $this->Password, $this->Url, $this->TimeLogging);
 		}
 		catch (Exception $e) {
 			throw new Exception('Error occured: ' . $e->getMessage());

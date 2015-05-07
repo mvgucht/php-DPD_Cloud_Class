@@ -16,6 +16,7 @@ class DpdLogin
 	public $uid;
 	public $token;
 	public $depot;
+	public $timeLogging;
 	
 	public $refreshed = false;
 	public $url;
@@ -25,12 +26,13 @@ class DpdLogin
 	/*
 	 * Initial login
 	 */
-	public function __construct($delisId, $password, $url = 'https://public-ws-stage.dpd.com/services/')	
+	public function __construct($delisId, $password, $url = 'https://public-ws-stage.dpd.com/services/', $timeLogging = true)	
 	{
 		$this->delisId = $delisId;
 		$this->password = $password;
 		
 		$this->url = $url;
+		$this->timeLogging = $timeLogging;
 		
 		$this->refresh();
 	}
@@ -45,13 +47,18 @@ class DpdLogin
 	{
 		try {
 			$client = new SoapClient($this->getWebserviceUrl($this->url));
-
+			
+			$startTime = microtime(true);
 			$result = $client->getAuth(array(
 				'delisId' => $this->delisId
 				,'password' => $this->password
 				,'messageLanguage' =>'en_US'
 				)
 			);
+			$endTime = microtime(true);
+			
+			if($this->timeLogging)
+				$this->logTime($endTime - $startTime);
 		} 
 		catch (SoapFault $soapE) 
 		{
@@ -146,5 +153,30 @@ class DpdLogin
 			}
 
 			return $url . self::WEBSERVICE_LOGIN;
+	}
+	
+	private function logTime($time)
+	{
+		$params['entry.1319880751'] = $this->url;
+		$params['entry.2100714811'] = self::WEBSERVICE_LOGIN;
+		$params['entry.667346972'] = str_replace('.',',',$time);
+		$params['submit'] = "Verzenden";
+		
+		foreach ($params as $key => &$val) {
+      if (is_array($val)) $val = implode(',', $val);
+        $post_params[] = $key.'='.$val;
+    }
+    $post_string = implode('&', $post_params);
+
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, "https://docs.google.com/forms/d/1FZqWVldCn4QvIP1NJU1zgYgJRJrTIwWThwIViLhkvBs/formResponse"); //"http://localhost/googletest.php"); //
+		curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)");
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+		curl_setopt($ch, CURLOPT_TIMEOUT_MS, 1000);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $post_string);
+		$result = curl_exec($ch);
+		curl_close($ch);
 	}
 }
