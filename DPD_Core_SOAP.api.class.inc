@@ -9,6 +9,7 @@ include_once dirname(__FILE__).'/classes/dpdlogin.php';
 include_once dirname(__FILE__).'/classes/dpdparcelshopfinder.php';
 include_once dirname(__FILE__).'/classes/dpdshippingmethods.php';
 include_once dirname(__FILE__).'/classes/dpdshipment.php';
+include_once dirname(__FILE__).'/classes/dpdparcellifecycle.php';
 
 class DPD_Core_SOAP {
 
@@ -357,13 +358,22 @@ class DPD_Core_SOAP {
    * @return array;
    */
   public function getParcelLifeCycle($parcel_no) {
-    $parcel_data = array(
-      'ParcelNo' => $parcel_no,
+    $lifecycle = new DpdParcelLifeCycle($this->Login);
+		$parcel_data = array(
+      'parcellabelnumber' => $parcel_no,
     );
+		
+		$response = $lifecycle->search($parcel_data);
+		
+		$mapped_result = new stdClass();
+		$mapped_result->getParcelLifeCycleResult = new stdClass();
+		$mapped_result->getParcelLifeCycleResult->Version = 100;
+		$mapped_result->getParcelLifeCycleResult->Language = 'en_US';
+		$mapped_result->getParcelLifeCycleResult->Ack = 'true';
+		$mapped_result->getParcelLifeCycleResult->TimeStamp = date("Y-m-d") . "T" . date("H:m:s.uP");
+		$mapped_result->getParcelLifeCycleResult->ParcelLifeCycleData = $response;
 
-    $response = $this->MakeRequest('ParcelLifeCycle', $parcel_data);
-
-    return $response;
+    return $mapped_result;
   }
 
   /**
@@ -570,7 +580,7 @@ class DPD_Core_SOAP {
    * @return object response;
    */
   public function getZipCodeRules() {
-    $response = $this->MakeRequest('ZipCodeRules');
+    $response = array();//$this->MakeRequest('ZipCodeRules');
 
     return $response;
   }
