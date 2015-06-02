@@ -33,7 +33,7 @@ class DpdParcelLifeCycle
 				$startTime = microtime(true);
 
 				$result = $client->getTrackingData(array(
-					'parcellabelnumber' => $data['parcellabelnumber']
+					'parcelLabelNumber' => $data['parcellabelnumber']
 					)
 				);
 

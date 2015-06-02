@@ -366,13 +366,12 @@ class DPD_Core_SOAP {
 		$response = $lifecycle->search($parcel_data);
 		
 		$mapped_result = new stdClass();
-		$mapped_result->getParcelLifeCycleResult = new stdClass();
-		$mapped_result->getParcelLifeCycleResult->Version = 100;
-		$mapped_result->getParcelLifeCycleResult->Language = 'en_US';
-		$mapped_result->getParcelLifeCycleResult->Ack = 'true';
-		$mapped_result->getParcelLifeCycleResult->TimeStamp = date("Y-m-d") . "T" . date("H:m:s.uP");
-		$mapped_result->getParcelLifeCycleResult->ParcelLifeCycleData = $response;
-
+		$mapped_result->Version = 100;
+		$mapped_result->Language = 'en_US';
+		$mapped_result->Ack = 'true';
+		$mapped_result->TimeStamp = date("Y-m-d") . "T" . date("H:m:s.uP");
+		$mapped_result->ParcelLifeCycleData = $response;
+		
     return $mapped_result;
   }
 
