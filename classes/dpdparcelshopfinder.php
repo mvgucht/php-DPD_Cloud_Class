@@ -77,7 +77,7 @@ class DpdParcelShopFinder
 								$newMessage = 'One of the values you provided is too long.';
 								break;
 							case 'Fault occured':
-								if($soapE->detail && $soapE->detail->authenticationFault)
+								if(isset($soapE->detail) && isset($soapE->detail->authenticationFault))
 								{
 									$counter++;
 									if($counter < 3)
@@ -131,10 +131,15 @@ class DpdParcelShopFinder
 			}
 			$stop = true;
 		}
-
-		foreach($result->parcelShop as $parcelShop)
-		{
-			$this->results[$parcelShop->parcelShopId] = $parcelShop;
+		
+		if(isset($result->parcelShop)) {
+			foreach($result->parcelShop as $parcelShop)
+			{
+				$this->results[$parcelShop->parcelShopId] = $parcelShop;
+			}
+			return true;
+		} else {
+			return false;
 		}
 	}
 	
