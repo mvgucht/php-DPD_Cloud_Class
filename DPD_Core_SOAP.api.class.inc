@@ -365,6 +365,11 @@ class DPD_Core_SOAP {
 		
 		$response = $lifecycle->search($parcel_data);
 		
+		$arr = (array)$response;
+		if (empty($arr)) {
+				return false;
+		}
+		
 		$mapped_result = new stdClass();
 		$mapped_result->Version = 100;
 		$mapped_result->Language = 'en_US';
