@@ -130,7 +130,7 @@ class DPD_Core_SOAP {
 						'name1' => $order_data['ShipperAddress']['Company']
 						,'name2' => $order_data['ShipperAddress']['Name']
 						,'street' => $order_data['ShipperAddress']['Street']
-						,'HouseNo' => $order_data['ShipperAddress']['HouseNo']
+						,'houseNo' => $order_data['ShipperAddress']['HouseNo']
 						,'country' => $order_data['ShipperAddress']['Country']
 						,'zipCode' => $order_data['ShipperAddress']['ZipCode']
 						,'city' => $order_data['ShipperAddress']['City']
