@@ -6,16 +6,16 @@ class DpdParcelShopFinder
 	 * Path to ParcelShopFinder webservice wsdl.
 	 */
 	CONST WEBSERVICE_PARCELSHOP = 'ParcelShopFinderService/V3_0/?wsdl';
-
+	
 	public $login;
-
+	
 	public $results = array();
-
-	public function __construct(DpdLogin $login)
+	
+	public function __construct(DpdLogin $login)	
 	{
 		$this->login = $login;
 	}
-
+	
 	public function search($data = array())
 	{
 		$counter = 0;
@@ -25,10 +25,10 @@ class DpdParcelShopFinder
 		{
 			try {
 				$client = new SoapClient($this->getWebserviceUrl($this->login->url));
-
+				
 				$soapHeader = $this->login->getSoapHeader();
 				$client->__setSoapHeaders($soapHeader);
-
+				
 				$result;
 				$startTime = microtime(true);
 				if(isset($data['long']) && isset($data['lat']))
@@ -55,11 +55,11 @@ class DpdParcelShopFinder
 					);
 				}
 				$endTime = microtime(true);
-
+				
 				if($this->login->timeLogging)
 					$this->logTime($endTime - $startTime);
-			}
-			catch (SoapFault $soapE)
+			} 
+			catch (SoapFault $soapE) 
 			{
 				switch($soapE->getCode())
 				{
@@ -81,7 +81,7 @@ class DpdParcelShopFinder
 								{
 									$counter++;
 									if($counter < 3)
-									{
+									{	
 										switch($soapE->detail->authenticationFault->errorCode)
 										{
 											case 'LOGIN_5':
@@ -96,7 +96,7 @@ class DpdParcelShopFinder
 												$newMessage = $soapE->detail->authenticationFault->errorMessage;
 												break;
 										}
-									}
+									} 
 									else
 										$newMessage = 'Maximum retries exceeded: ' . $soapE->detail->authenticationFault->errorMessage;
 								}
@@ -112,7 +112,7 @@ class DpdParcelShopFinder
 						switch($soapE->getMessage())
 						{
 							case 'Error reading XMLStreamReader.':
-								$newMessage = 'It looks like there is a typo in the xml call.';
+								$newMessage = 'It looks like their is a typo in the xml call.';
 								break;
 							default:
 								$newMessage = $soapE->getMessage();
@@ -123,28 +123,15 @@ class DpdParcelShopFinder
 						$newMessage = $soapE->getMessage();
 						break;
 				}
-
-        if (is_callable('watchdog')) {
-          //In case of Drupal
-          watchdog('DPD Exception', $newMessage, WATCHDOG_EMERGENCY);
-        } else {
-          error_log($newMessage, 'DPD Exception');
-        }
-				return FALSE;
-			}
-			catch (Exception $e)
+				throw new Exception($newMessage, $soapE->getCode(), $soapE);
+			} 
+			catch (Exception $e) 
 			{
-        if (is_callable('watchdog')) {
-          //In case of Drupal
-          watchdog('DPD Exception', 'Something went wrong with the connection to the DPD server', WATCHDOG_EMERGENCY);
-        } else {
-          error_log('Something went wrong with the connection to the DPD server', 'DPD Exception');
-        }
-        return FALSE;
+				throw new Exception('Something went wrong with the connection to the DPD server', $e->getCode(), $e);
 			}
 			$stop = true;
 		}
-
+		
 		if(isset($result->parcelShop)) {
 			foreach($result->parcelShop as $parcelShop)
 			{
@@ -155,7 +142,7 @@ class DpdParcelShopFinder
 			return false;
 		}
 	}
-
+	
 	/**
 	* Add trailing slash to url if not exists.
 	*
@@ -170,14 +157,14 @@ class DpdParcelShopFinder
 
 			return $url . self::WEBSERVICE_PARCELSHOP;
 	}
-
+	
 	private function logTime($time)
 	{
 		$params['entry.1319880751'] = $this->login->url;
 		$params['entry.2100714811'] = self::WEBSERVICE_PARCELSHOP;
 		$params['entry.667346972'] = str_replace('.',',',$time);
 		$params['submit'] = "Verzenden";
-
+		
 		foreach ($params as $key => &$val) {
       if (is_array($val)) $val = implode(',', $val);
         $post_params[] = $key.'='.$val;
