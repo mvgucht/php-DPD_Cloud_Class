@@ -33,10 +33,10 @@ class DPD_Core_SOAP {
    *   Your password
    */
   public function __construct($DelisID, $Password, $Language = 'en_EN', $LiveServer = true, $TimeLogging = true) {
-    $this->Url = $LiveServer ? 'https://public-ws.dpd.com/services/' : 'https://public-ws-stage.dpd.com/services/';
+    $this->Url = $LiveServer ? 'https://public-dis.dpd.nl/Services/' : 'https://public-dis-stage.dpd.nl/Services/';
     $this->DelisID = $DelisID;
     $this->Password = $Password;
-		$this->TimeLogging = $TimeLogging;
+	$this->TimeLogging = $TimeLogging;
     $this->Language = $Language;
 		
 		try	{
